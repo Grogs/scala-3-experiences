@@ -1,40 +1,350 @@
 <!doctype html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-		<title>reveal.js</title>
+    <title>reveal.js</title>
 
-		<link rel="stylesheet" href="dist/reset.css">
-		<link rel="stylesheet" href="dist/reveal.css">
-		<link rel="stylesheet" href="dist/theme/black.css">
+    <link rel="stylesheet" href="dist/reset.css">
+    <link rel="stylesheet" href="dist/reveal.css">
+    <link rel="stylesheet" href="dist/theme/sky.css">
 
-		<!-- Theme used for syntax highlighted code -->
-		<link rel="stylesheet" href="plugin/highlight/monokai.css">
-	</head>
-	<body>
-		<div class="reveal">
-			<div class="slides">
-				<section>Slide 1</section>
-				<section>Slide 2</section>
-			</div>
-		</div>
+    <!-- Theme used for syntax highlighted code -->
+    <link rel="stylesheet" href="plugin/highlight/monokai.css">
+</head>
+<body>
+<div class="reveal">
+    <div class="slides">
+        <section data-markdown data-separator="^~~~~" data-separator-vertical="^~" data-notes="^Note:">
+            <script type="text/template">
+                ## Experiences Moving to Scala 3
 
-		<script src="dist/reveal.js"></script>
-		<script src="plugin/notes/notes.js"></script>
-		<script src="plugin/markdown/markdown.js"></script>
-		<script src="plugin/highlight/highlight.js"></script>
-		<script>
-			// More info about initialization & config:
-			// - https://revealjs.com/initialization/
-			// - https://revealjs.com/config/
-			Reveal.initialize({
-				hash: true,
 
-				// Learn about plugins: https://revealjs.com/plugins/
-				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
-			});
-		</script>
-	</body>
+                ~~~~
+
+                Introduction
+                Note:
+                Hey, I'm Greg, a software engineer here at Expedia. And I'm going to talk about our team's move to Scala 3.
+                I'm going to give some context about our codebase, how our migration went, and what I learnt along the way. Then I'll reflect on how it's been since moving, and look ahead a bit at what I'm excited about in upcoming versions of Scala.
+                ~
+                About me
+                Note:
+                I've been using Scala professionally for 12 years, the last 8 of which have been at Expedia.
+
+                ~
+                About my team
+                Note:
+                My team's part of the discovery/recommendation team. We're responsible for a bunch of carousels on the homepage among other things.
+                We have one main app on the backend that's about 2 and half years old and has had around 5-10 people working on it at different times  over those years.
+
+
+                ~
+                About our codebase
+
+                Note:
+                - Created in late 2021 with Scala 2.12. 😱
+                - Around 50k LOC, the majority of which is test code.
+                - Mostly typelevel stack, so cats-effect, fs2-grpc, redis4cats, http4s & tapir
+                - It exposes a gRPC service and some REST endpoints
+                - We're interacting with Redis, MongoDB, Elasticsearch, Kafka, and a bunch of other service using a mixture of GraphQL, gPRC and REST
+                - We're using a number of internal Java and Kotlin SDKs/libraries.
+                - We only moved to Scala 2.13 in August 2023.
+                - Migrated to Scala 3.4 last month
+
+
+                ~~~~
+
+                Why'd we move to Scala 3 now?
+
+                Note:
+                To be honest, I'm not sure if I'd consider us fast or slow at moving.
+                Quick show of hands:
+                - How many of you are using 2.13, or earlier?
+                - How many of you are using Scala 3?
+
+                ~
+                JetBrains State of Developer Ecosystem reports
+
+                Note:
+                I was curious, so I took at look at the JetBrains State of Developer Ecosystem reports for the last few years.
+                ~
+
+                #### 2023
+                <img src="dist/Screenshot 2024-06-18 at 18.40.49.png" alt="2023 adoption"
+                     style="width: 60%; height: auto;"/>
+
+                #### Previous years
+                <img src="dist/Screenshot 2024-06-18 at 18.40.00.png" alt="2021 and 2022 adoption"
+                     style="width: 40%; height: auto;"/>
+
+                Note:
+                So in 2021, 10% were regularly using Scala 3. In 2022 that increased by 18% to 28%. And in 2023 it increased by 17% to 45%.
+                I believe the survey runs in the summer. In fact I'd expect this year's survey to start soon.
+
+                ~
+                # 🤷
+
+                Note:
+                So, we're definitely a bit late to the party, but not stragglers.
+
+                Essentially it's difficult to justify prioritising a migration unless it's necessary.
+
+                ~
+                So why move?
+
+                Note:
+                Scala 2.13 is still perfectly nice to work with. Libraries aren't dropping 2.13 support. There wasn't any killer feature that motivated the moved.
+                Shiny new syntax was a motivation, but for me personally...
+
+
+                ~
+                Lack of Scala 3 support was a motivation
+
+                Note:
+                Perhaps counter-intuitively, it was actually the lack of Scala 3 support for a few libraries was the main motivation for me.
+
+                A LOT of libraries now support Scala 3, including a few that didn't when we first looked at migrating last year.
+
+                Chimney, which is a nice library for easily converting between classes, is one example. It first got a milestone release with Scala 3 support in August last year.
+
+                ScalaMock is another example. That got Scala 3 support in February of this year.
+
+                So it was this weird situation where occasionally myself or one of my teamates would look at introducing a new library. And if they didn't support Scala 3... I'd find myself thinking "No, I don't want to adopt that, it'll stop us moving to Scala 3". E.g. ScalaMock (versus mockito), scala-newtype (versus monix-newtype or neotype for Scala 3), macro annotations
+
+                So, weirdly, yeah, it was lack of Scala 3 support that mainly motivated the migration for me.
+
+                ~
+                ## Attempt 1
+                August 2023
+
+
+                Note:
+                - We first spent a day seeing what it'd take to move to Scala 3. This was back in August 2023, right after finally moving to Scala 2.13
+                - We depended on a few internal libraries without Scala 3 support
+                - As well as a few external ones, e.g circe-optics
+                - Ultimately, we didn't get to the point where SBT would resolve our dependencies. So we kinda gave up for the time being.
+
+                ~
+                ## Attempt 2
+                January 2024
+
+                Note:
+                In the new year, I had another go. A number of external libraries that previous hadn't supported Scala 3 now did.
+                We dropped our usage of any internal libs that hadn't migrated.
+
+                BUT... scalafmt. 🤦‍♂️ It turns out we'd be stuck on a super old version of scalafmt that someone had hardcoded in an internal SBT plugin a few years ago.
+
+                Moving to a newer version of scalafmt was fine, but... As we were on such an old version before, the formatting changed which a bit. Which mean an already big PR to move to Scala 3 would inherit a whole bunch of reformatting noise.
+
+                So we decided to hold off, upgrade scalafmt first, then revisit.
+
+                ~
+                ## Attempt 3
+                April/May 2024
+
+                Note:
+                So, by mid to late April, we had a new version of scalafmt in place. And we were ready to try again.
+                After merging 3 months of changes and "re-applying" some of the migration to new code, and making some changes to minimise the diff (stick with `implicit`), we had a green build that was mergeable.
+                And that's when we hit the last problem...
+                ~
+                Code coverage
+
+                Note:
+                Now, I'm not a massive fan of code coverage. I think it's interesting metric to capture, but I'm more concerned about the discipline/approach within the team than the metric itself.
+
+                But... We were already tracking code coverage using scoverage. And...
+
+                ~
+                It dropped by 20% 😱
+                <img src="./dist/Screenshot%202024-06-19%20at%2019.09.29.png" alt="code coverage report">
+
+                Note:
+                And it wasn't because I deleted any tests.
+                So, in Scala 2, scoverage is the go-to for code coverage. In Scala 3, support is built into the compiler itself. It doesn't quite work the same, or have the exact same feature set.
+                ~
+                Macros and codegen
+
+                Note:
+                So it turns out that codegen (e.g. caliban for GraphQL schema) and macro (e.g. Chimney) generate code get included in coverage by Scala 3. This wasn't happening in scoverage.
+                ~
+                Code coverage exclusions
+
+                *rant*
+
+                Note:
+                I'm not a massive fan of code coverage exclusions. I've seen projects where the code coverage metric is great... But actually a whole bunch of stuff is excluded. Which arguably makes the metric meaningless.
+
+                But that said, I don't think it's unreasonable to exclude generated code from coverage. I don't want to test generated case classes, or accept that we're "not testing" 20% of our codebase.
+                ~
+                Code coverage exclusions in Scala 3
+
+                Note:
+                So it turns out that Scala 3, up to and including 3.4.1, does not support code coverage exclusions.
+                This was really surprising. I was a bit worried we'd have to shelve the migration again and wait a few more months again...
+                ~
+                Scala 3.4.2-RC1 to the rescue
+
+                Note:
+                It just so happened that Scala 3.4.1-RC1 had just been released at the end of March, and it included
+                the ability to exclude packages or files.
+                So we switched to an RC release of Scala and went live.
+                ~
+                Surprisingly uneventful release
+
+                Note:
+                There was a little bit of trepidation about releasing. We'd gone from 2.13 to 3.4, which seems like 5 'major' versions. In the 2.x days, that would have been a LOT of change! And we were using a RC version of Scala, so that sounds even more risky.
+                Maybe we could expect performance to change or something.
+
+                But in hindsight... Not a not actually change, or not a lot that would impact runtime behaviour. In some ways, the move from 2.13 to 3.x is less of a change than 2.12 to 2.13.
+                Yes, the compiler changed, but the standard library has actually been frozen since 2.13. The main brekin change in the language is around macros. Scala 3 changed syntax and forced macros to be rewritten, but the java runtime and scala standard library are the same... So I guess it's not too surprising we had an uneventful release.
+                ~~~~
+                How is it after moving
+
+                Note:
+                So that was how our migration went. How is it after moving?
+
+                ~
+                `implicit` to `given/using` and extension methods 👍
+                Note:
+                Initially we moved but kept `implicit` keyword everywhere.
+                We've now switched to given/using, which is nicer. Especially when you have givens for typeclasses that don't really need names.
+
+                Extension methods are great. I like the syntax more than implicit classes...
+
+                But more than that... `implicit classes` always felt like a bit of an "advanced" feature.
+
+                I'd have to explain them to new starters, and the explanation always sounded a bit like "this is just how you do extension methods in Scala". But now the syntax is very natural/readable and so I'm finding myself introducing extension methods a lot more, although typically just scoped to a class.
+
+                Compilation errors are way better. In general, but also specifically for implicits, it's really useful having suggested imports
+
+                Also, for extension methods, I much prefer the imports. Previously you'd be importing some "ops" implicit class which isn't worth knowing the name of, so in reality you'd be do wildcard import... Now it's a lot easier to match up imports to extension methods.
+
+                I also like that IntelliJ highlights the `import blah.given` syntax. It's a small thing, but it's nice.
+                ~
+                `derives` keyword
+
+                Note:
+                Typeclass derivation is better... but in practice, not as quite as straightforward  as I'd hoped.
+                I like the `derives` keyword, I think it makes typeclasses a first class thing. Much like extension methods, it's easier to explain without resorting to "well this is just how you encode typeclasses in Scala" before with companion objects and implicits kept in a separate file.
+
+                I'm not a fan of the `-max-inlines` flag. I get why it's there, but it's a bit of a pain. For types within our own codebase, it's simple enough to deal with it by being more liberal with `derives`.  I wonder if everyone just deals with it by increasing the limit in their build.sbt? It's interesting because we'd stopped having to worry about this sort of thing in Scala 2. In the past you could get really slow derivation, but the Magnolia library largely solved it. But now it's easy to hit the max-inlines limit, and the error message isn't particularly helpful.
+
+                ~
+                `enum`s
+
+                Note:
+                I really like them. We've not moved everything over. We've still got [enumeratum](https://github.com/lloydmeta/enumeratum) usage to remove.
+                Sidenote: I really appreciate that enumeratum is cross-built for scala 3. I'm not sure there's meant reasons to use it anymore, but it's was great being able to minimise changes when migrating.
+
+                I wish we had ['multi-level' enums](https://contributors.scala-lang.org/t/proposal-for-multi-level-enums/3344). It feels like we've got a really nice new way to define ADTs, but not all ADTs can be expressed with it, but now we have two ways of doing things.
+
+                ~
+                Significant whitespace
+
+                Note:
+                We've not removed all our brackets. But we're not disallowing it either. I'm curious if other teams decide one way or another and use scalafmt to enforce. But for now, I really like it for for-comprehensions and 2 lines methods. I'm even finding myself using the 'fewer braces' syntax when pattern matching in a map or filter. I'm curious how our code will look in a year's time.
+                ~
+                `export` clauses
+
+                Note:
+                I think export clauses are really interesting. And I'm sure I'll find them useful. They can be used to do composition over inheritance in a nice way, and to bundle or simplify imports. But to be honest, I keep forgetting that they exist.
+                ~
+                Union types
+
+                Note:
+                Similar to export clauses, I'm sure I'll find uses for them, but I've not found myself reaching for them much. When I've tried, the type inference has been a bit unintuitive...
+                ~
+                IntelliJ
+
+                Note:
+                IntelliJ support isn't amazing. But it is amazing compared to August 2023 and seems to be getting noticeably better with each release. But... It's still lagging behind where Scala 2.13 support got to.
+
+                You've got two highlighting options for Scala 3 in IntelliJ: build in and compiler. Built in is nice and snappy. But if it gives me quite a few false errors. So it's like going back to Scala 2 support over 5 years ago. Compiler-based highlighting is accurate... But it makes error messages and IntelliJ's suggestions super laggy.
+
+                I think it's "good enough". I really hope it continues to improve. There was an announcement last month that JetBrains joined the Scala Center Advisory Board. That's a good sign, and I hope it translates to Scala 3 support continuing to get better.
+                ~
+                Lots of library still *target* 2.13
+
+                Note:
+                Libraries aren't dropping support for Scala 2.13 anytime soon. Which is great. But it's a bit of a double edged sword.
+                You can still use implicit keyword, so libraries still do. This means we don't get the nice imports of givens or extension methods unless libraries switch over.
+                I'd like to see more Scala 3 exclusive libraries to motivate more people to switch.
+
+                ~~~~
+                What's next
+
+                Note:
+                What's coming up that excites me?
+                ~
+                scala-cli as the scala command
+                Note:
+                scala-cli is really nice, it's nice to see it becoming *the* scala command. I hope the move goes smoothly.
+                Unfortunately we're not using it at all, because internally our tooling and docs focus on how to make SBT resolve from internal repositories rather than coursier... But hopefully we'll update that... I'd really like to start using scala-cli at work.
+
+                ~
+                faster compilation
+
+                Note:
+                3.5.x has pipelined compilation, which apparently gives ~10% speedup. Always good to hear that compilation is speeding up. Frankly I don't feel that it's very slow anymore. If it is, it's typically a macro-heavy library. IDK how much we should like to the language to solve that versus library authors to be cautious
+                ~
+                `-WConf`
+
+                Note:
+                Kind of a boring one, much like code coverage exclusions.
+                It's common to turn on a bunch of compiler warnings, and warnings as errors, to catch potential bugs. For example, to prevent non-exhaustive pattern matches. We use sbt-tpolecat to apply a bunch of these compiler flags.
+                But sometimes you don't want to be so strict with all your code. A good usecase for that is when you have generated code (e.g. caliban, fs2-grpc). You're not in control of the code that's generated, so if it generates warnings, it's ahrd to do anything about it.
+                And that's where `-WConf` comes in. It allows you to turn off warnings for specific files or packages. But it's been missing from Scala 3 thus far. So it'll be good to have it back, especially for that generated code situation.
+
+                ~~~~
+                Conclusion
+
+                Note:
+                There's other cool things like named tuples, but let's conclude.
+
+                So many libraries support Scala 3 now. More than last year.
+                IntelliJ support is getting there, and improving at a good pace.
+                It's genuinely nicer to write Scala 3, and the language is continuing to improve/evolve at a good pace.
+                If you had issues migrating to Scala 3 before, maybe take another look.
+                Scala 2 is disappearing anytime soon
+                I'd love to see more Scala 3 exclusive libraries to motivate more people to switch.
+
+                ~~~~
+                Questions?
+            </script>
+        </section>
+    </div>
+</div>
+
+<script src="dist/reveal.js"></script>
+<script src="plugin/notes/notes.js"></script>
+<script src="plugin/markdown/markdown.js"></script>
+<script src="plugin/highlight/highlight.js"></script>
+<script>
+    // More info about initialization & config:
+    // - https://revealjs.com/initialization/
+    // - https://revealjs.com/config/
+    Reveal.initialize({
+        hash: true,
+
+        // Learn about plugins: https://revealjs.com/plugins/
+        plugins: [RevealMarkdown, RevealHighlight, RevealNotes]
+    });
+</script>
+<script src="socket.io/socket.io.js"></script>
+<script src="node_modules/reveal-notes-server/client.js"></script>
+<style>
+    .reveal .footer {
+        position: absolute;
+        bottom: 1em;
+        left: 1em;
+        font-size: 0.7em;
+    }
+
+    /*Theme overrides*/
+    .reveal h1, .reveal h2, .reveal h3, .reveal h4, .reveal h5, .reveal h6 {
+        text-transform: none;
+    }
+</style>
+</body>
 </html>
